@@ -37,23 +37,6 @@ void cosim_adapter_c::init(
    // Extract names of the simd core modules
 
    // Extract names of the schd exec blocks which correspond to simd
-   BOOST_FOREACH( const boost_pt::ptree::value_type& exec_el, _exec_p.get()) {
-      if( !exec_el.first.empty()) {
-         SCHD_REPORT_ERROR( "schd::plan" ) << name() <<  " Incorrect exec structure";
-      }
-
-      boost::optional<std::string> name_p = exec_el.second.get_optional<std::string>("name");
-
-      if( !name_p.is_initialized()) {
-         SCHD_REPORT_ERROR( "schd::plan" ) << name() <<  " Incorrect exec structure";
-      }
-
-      // Initialize exec data
-      exec_data_t exec_data;
-
-      exec_list.emplace( std::make_pair( name_p.get(), exec_data ));
-   } // BOOST_FOREACH( const boost_pt::ptree::value_type& exec_el, _exec_p.get())
-
 
    // Connect fifo channels with the corresponding exports
    plan_eo.bind( chn_plan_adap );

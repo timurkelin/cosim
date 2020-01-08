@@ -133,7 +133,7 @@
           "opt": "-font -*-courier-medium-i-normal--12-* -shape bus -textcolor #F8F8FF -linecolor green" },
          {"mask": "^run_40#exec_40#.*$", "format": "%1%.%2%(%3%)",  "bgcolor": "Indigo",
           "opt": "-font -*-courier-medium-i-normal--12-* -shape bus -textcolor #F8F8FF -linecolor green" },
-          
+
          {"mask": "^$",   "format": "%1%%2%%3% ",    "bgcolor": "grey0",
           "opt": "-font -*-courier-medium-i-normal--12-* -shape z   -textcolor #F8F8FF -linecolor green" },
          {"mask": "^.*$", "format": "%1%.%2%(%3%)",  "bgcolor": "grey0",
@@ -185,58 +185,98 @@
          }
       ]
    },
-   
-    "core": [
-        {
-            "name": "xbar",
-            "function": "xbar",
-            "param": {
-                "config_slots": "5"
-            }
-        },
-        {
-            "name": "st_gen1",
-            "function": "st_siggen_1",
-            "param": {
-                "config_slots": "4",
-                "status_slots": "4",
-                "fifo_depth": "2"
-            }
-        },
-        {
-            "name": "st_ana1",
-            "function": "st_sigana_1",
-            "param": {
-                "config_slots": "4",
-                "status_slots": "4",
-                "fifo_depth": "2"
-            }
-        },
-        {
-            "name": "st_gen2",
-            "function": "st_siggen_1",
-            "param": {
-                "config_slots": "4",
-                "status_slots": "4",
-                "fifo_depth": "2"
-            }
-        },
-        {
-            "name": "st_ana2",
-            "function": "st_sigana_1",
-            "param": {
-                "config_slots": "4",
-                "status_slots": "4",
-                "fifo_depth": "2"
-            }
-        }
-    ],
-    
-    "pool": "",
-    
-    "clock": {
-        "freq": "100.0MHz"
-    },
-    
-    "scalar": ""   
+
+   "simd": [
+		{ "name": "simd_a",
+		  "pref": [
+	        {   "name": "xbar_a",
+	            "function": "xbar",
+	            "param": {
+	                "config_slots": "5"
+	            }
+	        },
+	        {   "name": "st_gen1_a",
+	            "function": "st_siggen_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        },
+	        {   "name": "st_ana1_a",
+	            "function": "st_sigana_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        },
+	        {   "name": "st_gen2_a",
+	            "function": "st_siggen_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        },
+	        {   "name": "st_ana2_a",
+	            "function": "st_sigana_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        }
+	     ]
+	   }, 
+	   
+	   { "name": "simd_b",
+		  "pref": [
+	        {   "name": "xbar_b",
+	            "function": "xbar",
+	            "param": {
+	                "config_slots": "5"
+	            }
+	        },
+	        {   "name": "st_gen1_b",
+	            "function": "st_siggen_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        },
+	        {   "name": "st_ana1_b",
+	            "function": "st_sigana_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        },
+	        {   "name": "st_gen2_b",
+	            "function": "st_siggen_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        },
+	        {   "name": "st_ana2_b",
+	            "function": "st_sigana_1",
+	            "param": {
+	                "config_slots": "4",
+	                "status_slots": "4",
+	                "fifo_depth": "2"
+	            }
+	        }
+	     ]
+	   } 
+   ],
+
+   "pool": "",
+
+   "clock": {
+       "freq": "100.0MHz"
+   }
 }

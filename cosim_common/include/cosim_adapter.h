@@ -54,16 +54,6 @@ namespace schd {
 
       static const int chn_adap_plan_size = 64;
       static const int chn_plan_adap_size = 64;
-
-      class exec_data_t {
-      public:
-         std::list<boost_pt::ptree> exec_pt;            // pt for dmeu/xbar/run
-         bool                       tx_active = false;  // this branch is being transmitted
-      };
-
-      typedef std::map<std::size_t, exec_data_t> exec_list_t;   // hash(thread+task) is used as a key
-
-      exec_list_t exec_list;
    };
 }
 
