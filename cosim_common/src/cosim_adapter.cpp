@@ -34,6 +34,16 @@ void cosim_adapter_c::init(
       boost::optional<const boost_pt::ptree&> schd_exec_p,        // SCHD exec preferences
       boost::optional<const boost_pt::ptree&> simd_core_p ) {     // SIMD core preferences
 
+   // Extract simd core name for the adapter name
+   std::string adpt_name = name();
+   std::size_t core_pos  = adpt_name.rfind( "_adpt" );
+
+   if( core_pos == std::string::npos ) {
+      SCHD_REPORT_ERROR( "cosim::adapter" ) << " Incorrect name: " << adpt_name;
+   }
+
+   core_name = adpt_name.substr( 0, core_pos );
+
    // Extract names of the simd core modules
 
    // Extract names of the schd exec blocks which correspond to simd

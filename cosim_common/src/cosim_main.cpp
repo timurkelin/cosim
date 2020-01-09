@@ -9,7 +9,7 @@ namespace schd {
    public:
       std::size_t                              idx;
       std::string                              name;
-      boost::optional<const boost_pt::ptree&>  pref_p;
+      boost::optional<const boost_pt::ptree&>  core_pref_p;
       boost::optional<schd::schd_core_c &>     schd_core_p;
       boost::optional<schd::cosim_adapter_c &> adapter_p;
       boost::optional<simd::simd_sys_core_c &> simd_core_p;
@@ -91,7 +91,7 @@ int sc_main(
 
       if( !name_p.is_initialized() ||
           !pref_p.is_initialized()) {
-         SCHD_REPORT_ERROR( "schd::plan" ) << " Incorrect structure of simd core preferences";
+         SCHD_REPORT_ERROR( "cosim::main" ) << " Incorrect structure of simd core preferences";
       }
 
       if( core_list.end() != std::find_if(
@@ -99,15 +99,15 @@ int sc_main(
             core_list.end(),
             [name_p]( schd::core_list_t::value_type& el )->bool{
                return name_p.get() == el.name; })) {
-         SCHD_REPORT_ERROR( "schd::plan" ) << " Duplicate name: " << name_p.get();
+         SCHD_REPORT_ERROR( "cosim::main" ) << " Duplicate name: " << name_p.get();
       }
 
-      core_data.idx    ++;
-      core_data.name   = name_p.get();
-      core_data.pref_p = pref_p;
+      core_data.idx ++;
+      core_data.name        = name_p.get();
+      core_data.core_pref_p = pref_p;
 
-      std::string adap_name = core_data.name + "_adap";
-      schd::cosim_adapter_c *adapter_raw_ptr = new schd::cosim_adapter_c( adap_name.c_str() );
+      std::string adpt_name = core_data.name + "_adpt";
+      schd::cosim_adapter_c *adapter_raw_ptr = new schd::cosim_adapter_c( adpt_name.c_str() );
       core_data.adapter_p = boost::optional<schd::cosim_adapter_c &>( *adapter_raw_ptr );
 
       simd::simd_sys_core_c *simd_core_raw_ptr = new simd::simd_sys_core_c( core_data.name.c_str() );
@@ -190,11 +190,11 @@ int sc_main(
       } // if( core_el.schd )
       else { // a bunch of SIMD cores
          core_el.simd_core_p.get().init(
-               core_el.pref_p );
+               core_el.core_pref_p );
 
          core_el.adapter_p.get().init(
                schd::schd_pref.get_pref( "executors" ),     // SCHD exec preferences
-               core_el.pref_p );                            // SIMD core preferences
+               core_el.core_pref_p );                       // SIMD core preferences
 
          // connect clock and reset channels
          core_el.simd_core_p.get().clock_i.bind(

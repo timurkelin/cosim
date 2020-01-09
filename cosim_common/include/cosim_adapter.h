@@ -10,6 +10,8 @@
 #define COSIM_COMMON_INCLUDE_COSIM_ADAPTER_H_
 
 #include <string>
+#include <list>
+#include <map>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/optional/optional.hpp>
 #include <systemc>
@@ -54,6 +56,26 @@ namespace schd {
 
       static const int chn_adap_plan_size = 64;
       static const int chn_plan_adap_size = 64;
+
+      class evnt_data_t {
+      public:
+         std::string event;
+         std::string clique;    // Members of the clique report together (with the last event received)
+         std::size_t cliq_hash = 0;
+      };
+
+      class cliq_data_t {
+      public:
+         std::string            clique;        // Members of the clique report together (when the last completes)
+         std::size_t            evnt_count = 0;
+         std::list<std::size_t> evnt_hash_list;
+      };
+
+      std::string            core_name; // name of the simd core which is connected to the adapter
+      std::list<std::string> dmeu_list; // List of DME/EU blocks in the simd core
+      std::map<std::size_t,evnt_data_t> evnt_cliq_list;  // maps event  hash to clique info
+      std::map<std::size_t,cliq_data_t> cliq_evnt_list;  // maps clique hash to event  info
+
    };
 }
 
