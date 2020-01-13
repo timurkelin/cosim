@@ -196,6 +196,10 @@ int sc_main(
                schd::schd_pref.get_pref( "executors" ),     // SCHD exec preferences
                core_el.core_pref_p );                       // SIMD core preferences
 
+         core_el.adapter_p.get().add_trace(
+               schd::schd_trace.tf,
+               "" );
+
          // connect clock and reset channels
          core_el.simd_core_p.get().clock_i.bind(
                clock );

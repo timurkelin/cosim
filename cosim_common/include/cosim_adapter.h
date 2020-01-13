@@ -45,6 +45,11 @@ namespace schd {
             boost::optional<const boost_pt::ptree&> schd_exec_p,        // SCHD exec preferences
             boost::optional<const boost_pt::ptree&> simd_core_p );      // SIMD core preferences
 
+      void add_trace(
+            sc_core::sc_trace_file* tf,
+            const std::string& top_name );
+
+
    private:
       // Process declarations
       void exec_thrd(
@@ -57,11 +62,14 @@ namespace schd {
       static const int chn_adap_plan_size = 64;
       static const int chn_plan_adap_size = 64;
 
+      std::string core_name;
+
       class evnt_data_t {
       public:
          std::string event;
          std::string clique;    // Members of the clique report together (with the last event received)
          std::size_t cliq_hash = 0;
+         std::size_t job_hash  = 0;
       };
 
       class cliq_data_t {
@@ -71,10 +79,15 @@ namespace schd {
          std::list<std::size_t> evnt_hash_list;
       };
 
-      std::string            core_name; // name of the simd core which is connected to the adapter
-      std::list<std::string> dmeu_list; // List of DME/EU blocks in the simd core
-      std::map<std::size_t,evnt_data_t> evnt_cliq_list;  // maps event  hash to clique info
-      std::map<std::size_t,cliq_data_t> cliq_evnt_list;  // maps clique hash to event  info
+      typedef std::map<std::size_t,evnt_data_t> evnt_cliq_list_t;
+      typedef std::map<std::size_t,cliq_data_t> cliq_evnt_list_t;
+
+      evnt_cliq_list_t evnt_cliq_list;  // maps event  hash to clique info
+      cliq_evnt_list_t cliq_evnt_list;  // maps clique hash to event  info
+
+      boost_pt::ptree plan_pt;
+      boost_pt::ptree evnt_pt;
+      boost_pt::ptree stat_pt;
 
    };
 }
