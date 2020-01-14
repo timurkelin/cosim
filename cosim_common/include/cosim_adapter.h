@@ -64,23 +64,24 @@ namespace schd {
 
       std::string core_name;
 
+      class cliq_data_t; // Forward declaration
+      typedef std::map<std::size_t,cliq_data_t> cliq_evnt_list_t;
+
       class evnt_data_t {
       public:
-         std::string event;
-         std::string clique;    // Members of the clique report together (with the last event received)
-         std::size_t cliq_hash = 0;
-         std::size_t job_hash  = 0;
+         std::string                                     event;
+         boost::optional<cliq_evnt_list_t::value_type &> clique_p;    // Members of the clique report together (with the last event received)
+         std::size_t                                     job_hash = 0;
       };
 
       class cliq_data_t {
       public:
-         std::string            clique;        // Members of the clique report together (when the last completes)
-         std::size_t            evnt_count = 0;
-         std::list<std::size_t> evnt_hash_list;
+         std::string                               clique;
+         std::size_t                               evnt_count = 0;
+         std::list<boost::optional<evnt_data_t &>> evnt_ptr_list;
       };
 
       typedef std::map<std::size_t,evnt_data_t> evnt_cliq_list_t;
-      typedef std::map<std::size_t,cliq_data_t> cliq_evnt_list_t;
 
       evnt_cliq_list_t evnt_cliq_list;  // maps event  hash to clique info
       cliq_evnt_list_t cliq_evnt_list;  // maps clique hash to event  info

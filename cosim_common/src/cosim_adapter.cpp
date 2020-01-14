@@ -6,6 +6,7 @@
 
 #include <boost/foreach.hpp>
 #include "cosim_adapter.h"
+#include "schd_dump.h"
 #include "schd_assert.h"
 #include "schd_report.h"
 #include "schd_trace.h"
@@ -68,7 +69,7 @@ void cosim_adapter_c::init(
       }
    } // BOOST_FOREACH( const boost_pt::ptree::value_type& dmeu_el, simd_core_p.get() )
 
-   // Add virtual configuring dmeu
+   // Add virtual configuration dmeu
    dmeu_list.push_back( core_name + ".config" );
 
    // Extract names of the schd exec blocks which correspond to simd
@@ -131,18 +132,26 @@ void cosim_adapter_c::add_trace(
 void cosim_adapter_c::exec_thrd(
       void ) {
 
+   schd_dump_buf_c<boost_pt::ptree> dump_buf_plan_i( std::string( name()) + ".plan_i" );
+   schd_dump_buf_c<boost_pt::ptree> dump_buf_plan_o( std::string( name()) + ".plan_o" );
+   schd_dump_buf_c<boost_pt::ptree> dump_buf_busr_i( std::string( name()) + ".busr_i" );
+   schd_dump_buf_c<boost_pt::ptree> dump_buf_busw_o( std::string( name()) + ".busw_o" );
+   schd_dump_buf_c<boost_pt::ptree> dump_buf_evnt_i( std::string( name()) + ".evnt_i" );
+
    for(;;) {
+      schd_sig_ptree_c pt_out;
+
       sc_core::wait();
 
       bool plan_new = true;
       bool evnt_new = true;
       bool stat_new = true;
 
-      if( !plan_pt.empty() ) { // New data from planner was fetched at the previous clock cycle
+      if( !plan_pt.empty() ) { // New data from planner was fetched from fifo at the previous clock cycle
 
       }
 
-      if( !evnt_pt.empty() ) { // New event was fetched at the previous clock cycle
+      if( !evnt_pt.empty() ) { // New event was fetched from fifo at the previous clock cycle
          // Build full hierarchical event name
          boost::optional<std::string> src_p  = evnt_pt.get_optional<std::string>( "source"   );
          boost::optional<std::string> evnt_p = evnt_pt.get_optional<std::string>( "event_id" );
@@ -153,27 +162,144 @@ void cosim_adapter_c::exec_thrd(
          }
 
          // Calculate hash
+         std::string evnt_str  = core_name + "." + src_p.get() + "." + evnt_p.get();
+         std::size_t evnt_hash = 0;
+         boost::hash_combine(
+               evnt_hash,
+               evnt_str );
 
+         auto evnt_cliq_it = evnt_cliq_list.find( evnt_hash );
 
-      }
+         if( evnt_cliq_it == evnt_cliq_list.end()) {
+            SCHD_REPORT_ERROR( "cosim::adapter" )
+                  << name()
+                  << " Unresolved event hash for: "
+                  << evnt_str;
+         }
 
-      if( !stat_pt.empty() ) { // New status was fetched at the previous clock cycle
+         if( evnt_cliq_it->second.clique_p.is_initialized() ) { // Event is a member of a clique
+            cliq_evnt_list_t::value_type &clique_r = evnt_cliq_it->second.clique_p.get();
+
+            clique_r.second.evnt_count --;
+
+            if( clique_r.second.evnt_count == 0 ) {
+               BOOST_FOREACH( boost::optional<evnt_data_t &> evnt_ptr_el, clique_r.second.evnt_ptr_list ) {
+                  evnt_ptr_el.get().job_hash = 0;
+                  evnt_ptr_el.get().clique_p.reset();
+
+                  boost_pt::ptree exec_pt;
+                  boost_pt::ptree dst_list_pt;
+                  dst_list_pt.push_back( std::make_pair( "", boost_pt::ptree().put( "", "planner" ) ));
+
+                  exec_pt.put(       "src",  evnt_ptr_el.get().event );  // Name of this executor
+                  exec_pt.put_child( "dst",  dst_list_pt             );  // Destination: planner
+
+                  plan_eo->write( pt_out.set( exec_pt )); // Write data to the output
+
+                  // Dump pt packets as they depart from the output of the block
+                  dump_buf_plan_o.write( exec_pt, BUF_WRITE_LAST );
+               }
+
+               cliq_evnt_list.erase( clique_r.first );
+            }
+         } // if( evnt_cliq_it->second.clique_p.is_initialized() )
+         else { // No clique specification. Report the completion straight away
+            evnt_cliq_it->second.job_hash = 0;
+
+            boost_pt::ptree exec_pt;
+            boost_pt::ptree dst_list_pt;
+            dst_list_pt.push_back( std::make_pair( "", boost_pt::ptree().put( "", "planner" ) ));
+
+            exec_pt.put(       "src",  evnt_str    );  // Name of this executor
+            exec_pt.put_child( "dst",  dst_list_pt );  // Destination: planner
+
+            plan_eo->write( pt_out.set( exec_pt )); // Write data to the output
+
+            // Dump pt packets as they depart from the output of the block
+            dump_buf_plan_o.write( exec_pt, BUF_WRITE_LAST );
+         } // if( evnt_cliq_it->second.clique_p.is_initialized() ) ... else ...
+      } // if( !evnt_pt.empty() )
+
+      if( !stat_pt.empty() ) { // New status was fetched from fifo at the previous clock cycle
          ; // Do nothing
       }
 
       // Read data from schd planner fifo
-      if( plan_ei->num_available() != 0 && plan_new ) {
+      bool plan_pt_clr = true;
+
+      while( plan_ei->num_available() != 0 && plan_new ) {
          plan_pt = plan_ei->read().get();
+
+         boost::optional<std::string> dst_p  = plan_pt.get_optional<std::string>( "dst" );
+
+         if( !dst_p.is_initialized() ) {
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << " Incorrect data structure";
+         }
+
+         // Set job hash
+         boost::optional<std::string>            thrd_p = plan_pt.get_optional<std::string>("thread"); // Tread name
+         boost::optional<std::string>            task_p = plan_pt.get_optional<std::string>("task");   // task name
+         boost::optional<const boost_pt::ptree&> para_p = plan_pt.get_child_optional("param");         // parameters ptree
+         boost::optional<const boost_pt::ptree&> optn_p = plan_pt.get_child_optional("options");       // options ptree
+
+         if( !thrd_p.is_initialized() ||
+             !task_p.is_initialized() ||
+             !para_p.is_initialized() ||
+             !optn_p.is_initialized()) {
+            std::string plan_pt_str;
+
+            SCHD_REPORT_ERROR( "schd::exec" ) << name()
+                                              << " Incorrect data format from planner: "
+                                              << pt2str( plan_pt, plan_pt_str );
+         }
+
+         boost::optional<std::string> prid_p = para_p.get().get_optional<std::string>("id");
+
+         if( !prid_p.is_initialized() ) {
+            std::string plan_pt_str;
+
+            SCHD_REPORT_ERROR( "schd::exec" ) << name()
+                                              << " Incorrect data format from planner: "
+                                              << pt2str( plan_pt, plan_pt_str );
+         }
+
+         std::string job_tag = schd_trace.job_comb(
+               thrd_p.get(),
+               task_p.get(),
+               prid_p.get());
+
+         std::size_t job_hash = 0;
+         boost::hash_combine(
+               job_hash,
+               job_tag  );
+
+         // Dump pt packets as they depart to the input of the block
+         dump_buf_plan_i.write( plan_pt, BUF_WRITE_LAST );
+
+         if( dst_p.get().find( core_name + ".config" ) == 0 ) {
+            plan_pt_clr = false;
+            break;
+         }
+      }
+
+      if( plan_pt_clr ) {
+         plan_pt.clear();
       }
 
       // Read data from simd event fifo
       if( event_i->num_available() != 0 && evnt_new ) {
          evnt_pt = event_i->read().get();
+
+         // Dump pt packets as they depart to the input of the block
+         dump_buf_evnt_i.write( evnt_pt, BUF_WRITE_LAST );
       }
 
       // Read data from simd status fifo
       if( busr_i->num_available() != 0 && stat_new ) {
          stat_pt = busr_i->read().get();
+
+         // Dump pt packets as they depart to the input of the block
+         dump_buf_busr_i.write( stat_pt, BUF_WRITE_LAST );
       }
    } // for(;;)
 } // void cosim_adapter_c::exec_thrd(
