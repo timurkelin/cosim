@@ -6,6 +6,7 @@
 
 #include <boost/foreach.hpp>
 #include "cosim_adapter.h"
+#include "schd_conv_ptree.h"
 #include "schd_dump.h"
 #include "schd_assert.h"
 #include "schd_report.h"
@@ -158,7 +159,7 @@ void cosim_adapter_c::exec_thrd(
 
          if( !src_p.is_initialized() ||
              !evnt_p.is_initialized() ) {
-            SCHD_REPORT_ERROR( "cosim::adapter" ) << " Incorrect event structure";
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << name() << " Incorrect event structure";
          }
 
          // Calculate hash
@@ -225,22 +226,33 @@ void cosim_adapter_c::exec_thrd(
       }
 
       // Read data from schd planner fifo
-      bool plan_pt_clr = true;
-
       while( plan_ei->num_available() != 0 && plan_new ) {
          plan_pt = plan_ei->read().get();
 
          boost::optional<std::string> dst_p  = plan_pt.get_optional<std::string>( "dst" );
 
          if( !dst_p.is_initialized() ) {
-            SCHD_REPORT_ERROR( "cosim::adapter" ) << " Incorrect data structure";
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << name() << " Incorrect data structure";
+         }
+
+         std::size_t evnt_hash = 0;
+         boost::hash_combine(
+               evnt_hash,
+               dst_p.get() );
+
+         auto evnt_cliq_it = evnt_cliq_list.find( evnt_hash );
+
+         if( evnt_cliq_it == evnt_cliq_list.end()) {
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << name()
+                                                  << " Unresolved event name: "
+                                                  << dst_p.get();
          }
 
          // Set job hash
-         boost::optional<std::string>            thrd_p = plan_pt.get_optional<std::string>("thread"); // Tread name
-         boost::optional<std::string>            task_p = plan_pt.get_optional<std::string>("task");   // task name
-         boost::optional<const boost_pt::ptree&> para_p = plan_pt.get_child_optional("param");         // parameters ptree
-         boost::optional<const boost_pt::ptree&> optn_p = plan_pt.get_child_optional("options");       // options ptree
+         boost::optional<std::string>      thrd_p = plan_pt.get_optional<std::string>("thread"); // Tread name
+         boost::optional<std::string>      task_p = plan_pt.get_optional<std::string>("task");   // task name
+         boost::optional<boost_pt::ptree&> para_p = plan_pt.get_child_optional("param");         // parameters ptree
+         boost::optional<boost_pt::ptree&> optn_p = plan_pt.get_child_optional("options");       // options ptree
 
          if( !thrd_p.is_initialized() ||
              !task_p.is_initialized() ||
@@ -253,6 +265,7 @@ void cosim_adapter_c::exec_thrd(
                                               << pt2str( plan_pt, plan_pt_str );
          }
 
+         // Get parameters id
          boost::optional<std::string> prid_p = para_p.get().get_optional<std::string>("id");
 
          if( !prid_p.is_initialized() ) {
@@ -263,34 +276,65 @@ void cosim_adapter_c::exec_thrd(
                                               << pt2str( plan_pt, plan_pt_str );
          }
 
+         // Update job hash
          std::string job_tag = schd_trace.job_comb(
                thrd_p.get(),
                task_p.get(),
                prid_p.get());
 
-         std::size_t job_hash = 0;
+         evnt_cliq_it->second.job_hash = 0;
          boost::hash_combine(
-               job_hash,
+               evnt_cliq_it->second.job_hash,
                job_tag  );
 
-         // Dump pt packets as they depart to the input of the block
+         // Get clique name if any
+         boost::optional<std::string> cliq_p = optn_p.get().get_optional<std::string>("clique");
+
+         if( cliq_p.is_initialized() &&
+             cliq_p.get().size() != 0 ) {
+
+            std::size_t cliq_hash = 0;
+            boost::hash_combine(
+                  cliq_hash,
+                  cliq_p.get() );
+
+            auto cliq_evnt_it = cliq_evnt_list.find( cliq_hash );
+
+            if( cliq_evnt_it == cliq_evnt_list.end()) {
+               cliq_data_t cliq_data;
+               cliq_data.clique = cliq_p.get();
+
+               bool done;
+               std::tie( cliq_evnt_it, done ) = cliq_evnt_list.insert( cliq_evnt_list_t::value_type( cliq_hash, cliq_data ));
+            }
+
+            // Add event to the list of pointers
+            cliq_evnt_it->second.evnt_count ++;
+            cliq_evnt_it->second.evnt_ptr_list.push_back( boost::optional<evnt_data_t &>( evnt_cliq_it->second ));
+
+            // Update pointer to the clique record
+            evnt_cliq_it->second.clique_p = boost::optional<cliq_evnt_list_t::value_type &>( *cliq_evnt_it );
+         }
+         else {
+            evnt_cliq_it->second.clique_p.reset();
+         }
+
+         // Dump pt packets as they arrive to the input of the block
          dump_buf_plan_i.write( plan_pt, BUF_WRITE_LAST );
 
          if( dst_p.get().find( core_name + ".config" ) == 0 ) {
-            plan_pt_clr = false;
+            plan_pt.clear();
+         }
+         else {
             break;
          }
-      }
-
-      if( plan_pt_clr ) {
-         plan_pt.clear();
       }
 
       // Read data from simd event fifo
       if( event_i->num_available() != 0 && evnt_new ) {
          evnt_pt = event_i->read().get();
 
-         // Dump pt packets as they depart to the input of the block
+         // Dump pt packets as they arrive to the input of the block
          dump_buf_evnt_i.write( evnt_pt, BUF_WRITE_LAST );
       }
 
@@ -298,7 +342,7 @@ void cosim_adapter_c::exec_thrd(
       if( busr_i->num_available() != 0 && stat_new ) {
          stat_pt = busr_i->read().get();
 
-         // Dump pt packets as they depart to the input of the block
+         // Dump pt packets as they arrive to the input of the block
          dump_buf_busr_i.write( stat_pt, BUF_WRITE_LAST );
       }
    } // for(;;)
