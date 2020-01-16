@@ -89,8 +89,8 @@ namespace schd {
       boost_pt::ptree plan_pt;
       boost_pt::ptree evnt_pt;
       boost_pt::ptree stat_pt;
-      boost_pt::ptree conf_pt;
-
+      boost::optional<boost_pt::ptree &> conf_p;
+      boost_pt::ptree::iterator          conf_it;
    };
 }
 

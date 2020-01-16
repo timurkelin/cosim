@@ -4,6 +4,8 @@
  *  Description: SCHD<->SIMD adapter for co-simulation
  */
 
+#include <iterator>
+#include <algorithm>
 #include <boost/foreach.hpp>
 #include "cosim_adapter.h"
 #include "schd_conv_ptree.h"
@@ -132,6 +134,8 @@ void cosim_adapter_c::add_trace(
 
 void cosim_adapter_c::exec_thrd(
       void ) {
+   schd::schd_sig_ptree_c schd_pt_out;
+   simd::simd_sig_ptree_c simd_pt_out;
 
    schd_dump_buf_c<boost_pt::ptree> dump_buf_plan_i( std::string( name()) + ".plan_i" );
    schd_dump_buf_c<boost_pt::ptree> dump_buf_plan_o( std::string( name()) + ".plan_o" );
@@ -140,8 +144,6 @@ void cosim_adapter_c::exec_thrd(
    schd_dump_buf_c<boost_pt::ptree> dump_buf_evnt_i( std::string( name()) + ".evnt_i" );
 
    for(;;) {
-      schd_sig_ptree_c pt_out;
-
       sc_core::wait();
 
       bool plan_new = true;
@@ -149,8 +151,25 @@ void cosim_adapter_c::exec_thrd(
       bool stat_new = true;
 
       if( !plan_pt.empty() ) { // New data from planner was fetched from fifo at the previous clock cycle
+         if( conf_it->first.empty()) {
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << name() <<  " Incorrect config structure";
+         }
 
-      }
+         busw_o->write( simd_pt_out.set( conf_it->second )); // Write data to the output
+
+         // Dump pt packets as they depart from the output of the block
+         dump_buf_busw_o.write( conf_it->second, BUF_WRITE_LAST );
+
+         conf_it = std::next( conf_it );
+
+         if( conf_it == conf_p.get().end()) {
+            conf_p.reset();
+            plan_pt.clear();
+         }
+         else {
+            plan_new = false;
+         }
+      } // if( !plan_pt.empty() )
 
       if( !evnt_pt.empty() ) { // New event was fetched from fifo at the previous clock cycle
          // Build full hierarchical event name
@@ -195,7 +214,7 @@ void cosim_adapter_c::exec_thrd(
                   exec_pt.put(       "src",  evnt_ptr_el.get().event );  // Name of this executor
                   exec_pt.put_child( "dst",  dst_list_pt             );  // Destination: planner
 
-                  plan_eo->write( pt_out.set( exec_pt )); // Write data to the output
+                  plan_eo->write( schd_pt_out.set( exec_pt )); // Write data to the output
 
                   // Dump pt packets as they depart from the output of the block
                   dump_buf_plan_o.write( exec_pt, BUF_WRITE_LAST );
@@ -214,7 +233,7 @@ void cosim_adapter_c::exec_thrd(
             exec_pt.put(       "src",  evnt_str    );  // Name of this executor
             exec_pt.put_child( "dst",  dst_list_pt );  // Destination: planner
 
-            plan_eo->write( pt_out.set( exec_pt )); // Write data to the output
+            plan_eo->write( schd_pt_out.set( exec_pt )); // Write data to the output
 
             // Dump pt packets as they depart from the output of the block
             dump_buf_plan_o.write( exec_pt, BUF_WRITE_LAST );
@@ -260,9 +279,9 @@ void cosim_adapter_c::exec_thrd(
              !optn_p.is_initialized()) {
             std::string plan_pt_str;
 
-            SCHD_REPORT_ERROR( "schd::exec" ) << name()
-                                              << " Incorrect data format from planner: "
-                                              << pt2str( plan_pt, plan_pt_str );
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << name()
+                                                  << " Incorrect data format from planner: "
+                                                  << pt2str( plan_pt, plan_pt_str );
          }
 
          // Get parameters id
@@ -271,9 +290,9 @@ void cosim_adapter_c::exec_thrd(
          if( !prid_p.is_initialized() ) {
             std::string plan_pt_str;
 
-            SCHD_REPORT_ERROR( "schd::exec" ) << name()
-                                              << " Incorrect data format from planner: "
-                                              << pt2str( plan_pt, plan_pt_str );
+            SCHD_REPORT_ERROR( "cosim::adapter" ) << name()
+                                                  << " Incorrect data format from planner: "
+                                                  << pt2str( plan_pt, plan_pt_str );
          }
 
          // Update job hash
@@ -323,10 +342,30 @@ void cosim_adapter_c::exec_thrd(
          dump_buf_plan_i.write( plan_pt, BUF_WRITE_LAST );
 
          if( dst_p.get().find( core_name + ".config" ) == 0 ) {
-            plan_pt.clear();
+            if( plan_ei->num_available() == 0 ) {
+               plan_pt.clear();
+            }
          }
          else {
-            break;
+            conf_p = optn_p.get().get_child_optional("config");
+
+            if( !cliq_p.is_initialized()) {
+               std::string plan_pt_str;
+
+               SCHD_REPORT_ERROR( "cosim::adapter" ) << name()
+                                                     << " Incorrect config data format from planner: "
+                                                     << pt2str( plan_pt, plan_pt_str );
+            }
+
+            if( conf_p.get().size() == 0 ) {
+               if( plan_ei->num_available() == 0 ) {
+                  plan_pt.clear();
+               }
+            }
+            else {
+               conf_it = conf_p.get().begin();
+               break;
+            }
          }
       }
 
