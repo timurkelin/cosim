@@ -128,12 +128,14 @@ int sc_main(
 
    endpoint_pt.clear();
    endpoint_pt.put( "name", "planner" );
+   endpoint_pt.put( "dump", "" ); // don't dump inside xbars
    plan_list_pt.push_back( std::make_pair( "", endpoint_pt ));
 
 
    BOOST_FOREACH( const schd::core_list_t::value_type& core_el, core_list ) {
       endpoint_pt.clear();
       endpoint_pt.put( "mask", "^" + core_el.name + ".*$" );    // regex
+      endpoint_pt.put( "dump", "" ); // don't dump inside xbars
       core_list_pt.push_back( std::make_pair( "", endpoint_pt ));
    }
 
