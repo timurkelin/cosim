@@ -21,7 +21,6 @@ CMP_SIMD_DIRS = $(SIMSIMD_HOME)/simd_common     \
                $(SIMSIMD_HOME)/simd_dump       \
                $(SIMSIMD_HOME)/simd_sys_crm    \
                $(SIMSIMD_HOME)/simd_sys_core   \
-               $(SIMSIMD_HOME)/simd_sys_bmux   \
                $(SIMSIMD_HOME)/simd_sys_xbar   \
                $(SIMSIMD_HOME)/simd_sys_eu     \
                $(SIMSIMD_HOME)/simd_sys_dm     \
