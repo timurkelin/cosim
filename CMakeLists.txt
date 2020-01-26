@@ -1,5 +1,5 @@
 cmake_minimum_required( VERSION 3.16 )
-project( "simsimd"
+project( "cosim"
    LANGUAGES CXX )
 
 find_program( CCACHE_FOUND ccache )
